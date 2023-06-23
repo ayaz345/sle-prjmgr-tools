@@ -40,11 +40,11 @@ def osc_packages_exclude_000(apiurl: str, target: str) -> List[str]:
     :param target: The target project to search.
     :return: The list of packages in the project.
     """
-    result = []
-    for package in core.meta_get_packagelist(apiurl, target):
-        if not package.startswith("000"):
-            result.append(package)
-    return result
+    return [
+        package
+        for package in core.meta_get_packagelist(apiurl, target)
+        if not package.startswith("000")
+    ]
 
 
 def get_issue_list(apiurl: str, target: str, package: str) -> List[str]:
@@ -64,10 +64,7 @@ def get_issue_list(apiurl: str, target: str, package: str) -> List[str]:
     issue_list_xml = xml_issues.xpath(
         '//sourcediff/issues/issue[@state="added"][@tracker="jsc"]'
     )
-    issue_list = []
-    for issue in issue_list_xml:
-        issue_list.append(issue.get("label"))
-    return issue_list
+    return [issue.get("label") for issue in issue_list_xml]
 
 
 def scan_commitlog_for_issues(apiurl: str, target: str, package: str) -> List[str]:

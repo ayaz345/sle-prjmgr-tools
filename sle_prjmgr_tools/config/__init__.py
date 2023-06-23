@@ -27,10 +27,7 @@ def load_modules() -> List[str]:
     module_list = []
     config_found = False
     for location in CONFIG_LOCATIONS:
-        if "$" in location:
-            real_location = os.path.expandvars(location)
-        else:
-            real_location = location
+        real_location = os.path.expandvars(location) if "$" in location else location
         if os.path.isfile(real_location):
             module_list = load_config(real_location)
             config_found = True

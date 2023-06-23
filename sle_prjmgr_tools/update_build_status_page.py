@@ -110,9 +110,7 @@ def get_project(project: str):
     :param project: The project to work with.
     :return: The project or SLES 15 SP1 for testing.
     """
-    if project == "test":
-        return "SUSE:SLE-15-SP1:GA"
-    return project
+    return "SUSE:SLE-15-SP1:GA" if project == "test" else project
 
 
 def free_page_cache(url: str):
@@ -147,11 +145,7 @@ def confluence_generate_build_summary(
     :param changelog: The cached output of the ``sle_build`` script.
     :return: The generated build summary.
     """
-    # pylint: disable=R0913
-    build_str = str(build_id)
-    if build_label:
-        build_str = f"{build_id} - {build_label}"
-
+    build_str = f"{build_id} - {build_label}" if build_label else str(build_id)
     pre_filled = confluence_get_next_build_section(
         server, user, password, page_id_by_project(project)
     )
@@ -165,8 +159,9 @@ def confluence_generate_build_summary(
         rf"\1<p><br /><br />{to_html_list(changelog)}</p></ac:rich-text-body>",
         summary,
     )
-    match = re.search(r'<time datetime="(?P<date>\d+-\d+-\d+)" />', summary)
-    if match:
+    if match := re.search(
+        r'<time datetime="(?P<date>\d+-\d+-\d+)" />', summary
+    ):
         summary = re.sub(
             r'<time datetime="\d+-\d+-\d+" />',
             f'<time datetime="{datetime.now().strftime("%Y-%m-%d")}" />',
@@ -204,11 +199,7 @@ def to_html_list(data: str):
     :param data: The str to convert.
     :return: The str with newlines replaced by the HTML ``<br />`` tag.
     """
-    result = ""
-    for line in data.split("\n"):
-        if line.strip():
-            result += f"{line}<br />"
-    return result
+    return "".join(f"{line}<br />" for line in data.split("\n") if line.strip())
 
 
 def get_last_build_number(project, changelog=None):
@@ -232,14 +223,12 @@ def get_last_build_number(project, changelog=None):
     if project.startswith("SUSE:SLE-12"):
         # SLE-12-SP5-HPC:		Build0151
         for line in changelog.split("\n"):
-            version = re.search("([0-9]+)$", line)
-            if version:
+            if version := re.search("([0-9]+)$", line):
                 versions.add(int(version.groups()[0]))
     elif project.startswith("SUSE:SLE-15"):
         # SLE-15-SP1-Installer:		Build224.10
         for line in changelog.split("\n"):
-            version = re.search(r"([0-9]+\.[0-9]+)$", line)
-            if version:
+            if version := re.search(r"([0-9]+\.[0-9]+)$", line):
                 versions.add(float(version.groups()[0]))
     # print versions
     return str(sorted(versions)[-1])  # sorted
@@ -262,9 +251,7 @@ def get_last_build_changelog(project: str):
     cmd = f"{os.path.join(os.path.dirname(os.path.realpath(__file__)), 'sle-build')} {prj}"
     out = subprocess.check_output(cmd, shell=True)
     # Python3 returns bytes-like obj
-    if not isinstance(out, str):
-        return out.decode("utf-8")
-    return out
+    return out.decode("utf-8") if not isinstance(out, str) else out
 
 
 def page_id_by_project(project: str):
@@ -302,11 +289,12 @@ def confluence_get_next_build_section(
     content = confluence_get_page_content(server, user, password, page_id, expand=True)
     # print content
     content = content["body"]["storage"]["value"]
-    next_build_section = content[
-        content.find("<ac:structured-macro") : content.find("</ac:structured-macro>")
+    return content[
+        content.find("<ac:structured-macro") : content.find(
+            "</ac:structured-macro>"
+        )
         + len("</ac:structured-macro>")
     ]
-    return next_build_section
 
 
 def generate_new_build_section(next_build_date: date):

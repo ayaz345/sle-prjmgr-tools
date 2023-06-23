@@ -57,9 +57,7 @@ class JiraWork(JiraUtils):
         :param build_number: The build number
         :return: The rendered template
         """
-        milestone_text = ""
-        if self.milestone_name:
-            milestone_text = f" ({self.milestone_name})"
+        milestone_text = f" ({self.milestone_name})" if self.milestone_name else ""
         return comment_template % (
             build_number,
             milestone_text,
@@ -325,12 +323,10 @@ def format_list_of_srs(srs: List[int], web_ui_url: str) -> str:
     :param web_ui_url: The URL that should be used to link a Submit Request to the Web UI.
     :return: The list in JIRA comment markup that will result in an unordered list.
     """
-    srs_formatted_str = ""
-    for submit_request in srs:
-        srs_formatted_str += (
-            f"- [{submit_request}|{web_ui_url}/request/show/{submit_request}]\n"
-        )
-    return srs_formatted_str
+    return "".join(
+        f"- [{submit_request}|{web_ui_url}/request/show/{submit_request}]\n"
+        for submit_request in srs
+    )
 
 
 def main_osc_work(obs_url: str, osc_config: Optional[str], project: str) -> dict:
@@ -362,11 +358,10 @@ def main_osc_work(obs_url: str, osc_config: Optional[str], project: str) -> dict
 
     # Collect all SRs between the build numbers
     list_with_srs = osc_collect_srs_between_builds(obs_url, project, duration)
-    # Collect all JSCs from the SRs
-    dict_with_srs = {}
-    for submit_request in list_with_srs:
-        dict_with_srs[submit_request] = osc_work.osc_get_jsc_from_sr(submit_request)
-    return dict_with_srs
+    return {
+        submit_request: osc_work.osc_get_jsc_from_sr(submit_request)
+        for submit_request in list_with_srs
+    }
 
 
 # pylint: disable-next=too-many-arguments
@@ -410,10 +405,9 @@ def main_jira_work(
         issues_by_category, list(dict_with_jscs.keys())
     )
 
-    # Duplicate detection
-    issues_by_category_sum = 0
-    for value in issues_by_category.values():
-        issues_by_category_sum += len(value)
+    issues_by_category_sum = sum(
+        len(value) for value in issues_by_category.values()
+    )
     if issues_by_category_sum != len(dict_with_jscs.keys()):
         logger.warning(
             "There were issues found that were not existing in JIRA or the current user has no access to!"

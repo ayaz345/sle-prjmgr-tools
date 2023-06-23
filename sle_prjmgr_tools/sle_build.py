@@ -118,8 +118,8 @@ def sle_15_media_build(apiurl: str, project: str) -> Dict[str, Build]:
         build_number_match = regex_output.match(build.name)
         if build_number_match is None:
             raise ValueError("No regex match for build number!")
-        build.kind = build_number_match.group(1)
-        build.number = build_number_match.group(2)
+        build.kind = build_number_match[1]
+        build.number = build_number_match[2]
         result[build.kind] = build
     return result
 
@@ -133,11 +133,11 @@ def osc_get_sle_non_release_packages(apiurl: str, project: str):
     :return: The list of packages.
     """
     package_list = core.meta_get_packagelist(apiurl, project)
-    result = []
-    for package in package_list:
-        if package.startswith("SLE") and "release" not in package:
-            result.append(package)
-    return result
+    return [
+        package
+        for package in package_list
+        if package.startswith("SLE") and "release" not in package
+    ]
 
 
 def osc_get_build_flavors(
@@ -162,10 +162,7 @@ def osc_get_build_flavors(
         raise
     root = etree.parse(file_object_osc_cat)
     elements = root.xpath("//multibuild/flavor")
-    result = []
-    for element in elements:
-        result.append(element.text)
-    return result
+    return [element.text for element in elements]
 
 
 def osc_get_non_product_packages(apiurl: str, project: str) -> List[str]:
@@ -179,10 +176,11 @@ def osc_get_non_product_packages(apiurl: str, project: str) -> List[str]:
     package_list = core.meta_get_packagelist(apiurl, project)
     result = []
     package_list.remove("000product")
-    for package in package_list:
-        if "_product" in package or "kiwi" in package:
-            continue
-        result.append(package)
+    result.extend(
+        package
+        for package in package_list
+        if "_product" not in package and "kiwi" not in package
+    )
     return result
 
 
@@ -195,12 +193,14 @@ def get_kiwi_template(apiurl: str, project: str) -> str:
     :return: The full name of the kiwi-template package.
     """
     project_packages = core.meta_get_packagelist(apiurl, project)
-    kiwi_template = ""
-    for package in project_packages:
-        if package.startswith("kiwi-templates"):
-            kiwi_template = package
-            break
-    return kiwi_template
+    return next(
+        (
+            package
+            for package in project_packages
+            if package.startswith("kiwi-templates")
+        ),
+        "",
+    )
 
 
 def get_sle_image_jeos_single(
@@ -216,14 +216,10 @@ def get_sle_image_jeos_single(
     :param i: The flavor of the package that is being searched for.
     :return: The images that have been found.
     """
-    result = []
     binaries = core.get_binarylist(
         apiurl, project, repo.name, repo.arch, f"{kiwi_template}:{i}"
     )
-    for binary in binaries:
-        if binary.endswith(".packages"):
-            result.append(binary[:-9])
-    return result
+    return [binary[:-9] for binary in binaries if binary.endswith(".packages")]
 
 
 def get_sle_images_jeos(apiurl: str, project: str, kiwi_template: str) -> List[str]:
@@ -241,17 +237,17 @@ def get_sle_images_jeos(apiurl: str, project: str, kiwi_template: str) -> List[s
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
         for i in osc_get_build_flavors(apiurl, project, kiwi_template, "_multibuild"):
-            for repo in repos:
-                futures.append(
-                    executor.submit(
-                        get_sle_image_jeos_single,
-                        apiurl,
-                        project,
-                        repo,
-                        kiwi_template,
-                        i,
-                    )
+            futures.extend(
+                executor.submit(
+                    get_sle_image_jeos_single,
+                    apiurl,
+                    project,
+                    repo,
+                    kiwi_template,
+                    i,
                 )
+                for repo in repos
+            )
         for future in concurrent.futures.as_completed(futures):
             result.extend(future.result())
     return result
@@ -270,14 +266,10 @@ def get_sle_images_multibuild_single(
     :param flavor: The flavor of the package that should be checked.
     :return: The list of images.
     """
-    result = []
     binaries = core.get_binarylist(
         apiurl, project, repo.name, repo.arch, f"{package}:{flavor}"
     )
-    for binary in binaries:
-        if binary.endswith(".packages"):
-            result.append(binary[:-9])
-    return result
+    return [binary[:-9] for binary in binaries if binary.endswith(".packages")]
 
 
 def get_sle_images_multibuild(apiurl: str, project: str):
@@ -296,17 +288,17 @@ def get_sle_images_multibuild(apiurl: str, project: str):
             for flavor in osc_get_build_flavors(
                 apiurl, project, package, "_multibuild"
             ):
-                for repo in repos:
-                    futures.append(
-                        executor.submit(
-                            get_sle_images_multibuild_single,
-                            apiurl,
-                            project,
-                            repo,
-                            package,
-                            flavor,
-                        )
+                futures.extend(
+                    executor.submit(
+                        get_sle_images_multibuild_single,
+                        apiurl,
+                        project,
+                        repo,
+                        package,
+                        flavor,
                     )
+                    for repo in repos
+                )
         for future in concurrent.futures.as_completed(futures):
             result.extend(future.result())
     return result
@@ -322,12 +314,8 @@ def get_sle_images_old_style_single(apiurl: str, project, repo, i):
     :param i: The package to search for old-style images.
     :return: The names of the images as a list.
     """
-    result = []
     binaries = core.get_binarylist(apiurl, project, repo.name, repo.arch, i)
-    for binary in binaries:
-        if binary.endswith(".packages"):
-            result.append(binary[:-9])
-    return result
+    return [binary[:-9] for binary in binaries if binary.endswith(".packages")]
 
 
 def get_sle_images_old_style(apiurl: str, project: str):
@@ -338,20 +326,20 @@ def get_sle_images_old_style(apiurl: str, project: str):
     :param project: The project to look at.
     """
     result = []
-    # core.get_repos_of_project returns an iterator
-    repos = []
-    for repo in list(core.get_repos_of_project(apiurl, project)):
-        if repo.name == "images":
-            repos.append(repo)
+    repos = [
+        repo
+        for repo in list(core.get_repos_of_project(apiurl, project))
+        if repo.name == "images"
+    ]
     with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
         futures = []
         for i in osc_get_non_product_packages(apiurl, project):
-            for repo in repos:
-                futures.append(
-                    executor.submit(
-                        get_sle_images_old_style_single, apiurl, project, repo, i
-                    )
+            futures.extend(
+                executor.submit(
+                    get_sle_images_old_style_single, apiurl, project, repo, i
                 )
+                for repo in repos
+            )
         for future in concurrent.futures.as_completed(futures):
             result.extend(future.result())
     return result
@@ -389,12 +377,8 @@ def osc_get_dvd_images(apiurl: str, version: str) -> List[str]:
     :return: The list of images that can be found.
     """
     packages = core.meta_get_packagelist(apiurl, f"SUSE:SLE-{version}:GA")
-    result = []
     product_regex = re.compile(r"_product.*(DVD-x86|cd-cd.*x86_64)")
-    for package in packages:
-        if product_regex.match(package):
-            result.append(package)
-    return result
+    return [package for package in packages if product_regex.match(package)]
 
 
 def get_wsl_binaries(apiurl: str, project: str) -> List[str]:
@@ -405,7 +389,6 @@ def get_wsl_binaries(apiurl: str, project: str) -> List[str]:
     :param project: The project to look for WSL images in.
     :return: A list of names for build WSL images.
     """
-    result = []
     try:
         binary_list = core.get_binarylist(
             apiurl,
@@ -421,10 +404,7 @@ def get_wsl_binaries(apiurl: str, project: str) -> List[str]:
         # Something do not exist, thus no binary available
         binary_list = []
 
-    for binary in binary_list:
-        if binary.endswith(".appx"):
-            result.append(binary)
-    return result
+    return [binary for binary in binary_list if binary.endswith(".appx")]
 
 
 def osc_get_sle_12_images(apiurl: str, version: str) -> Dict[str, Build]:
@@ -444,20 +424,20 @@ def osc_get_sle_12_images(apiurl: str, version: str) -> Dict[str, Build]:
             "local",
             package=image,
         )
-        builds = []
-        for media in my_media:
-            if (
-                media.endswith("Media1.iso") or media.endswith("Media.iso")
-            ) and "x86_64" in media:
-                builds.append(media)
+        builds = [
+            media
+            for media in my_media
+            if (media.endswith("Media1.iso") or media.endswith("Media.iso"))
+            and "x86_64" in media
+        ]
         regex_build = re.compile(r"(.*)-DVD.*x86_64-(Build[0-9]+)-Media(1)?\.iso")
         if len(builds) == 1:
             my_match = regex_build.match(builds[0])
             if my_match is None:
                 raise ValueError("No match for the regex of the build number!")
             build = Build(name=builds[0])
-            build.kind = my_match.group(1)
-            build.number = my_match.group(2)
+            build.kind = my_match[1]
+            build.number = my_match[2]
             result[build.kind] = build
     return result
 

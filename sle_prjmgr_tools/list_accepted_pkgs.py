@@ -64,14 +64,10 @@ def filter_requests(days: int, requests) -> list:
     :param requests: The list with the requests to filter.
     :return: Filter list where every request is younger than the days specified.
     """
-    result = []
     earliest_date = time.strftime(
         "%Y-%m-%dT%H:%M:%S", time.localtime(time.time() - days * 24 * 3600)
     )
-    for request in requests:
-        if request.state.when > earliest_date:
-            result.append(request)
-    return result
+    return [request for request in requests if request.state.when > earliest_date]
 
 
 def main_cli(args):

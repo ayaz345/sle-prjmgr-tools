@@ -193,7 +193,7 @@ def xcdchk_updated_pkgs(
                 match = upgrade_regex.match(line)
                 if match is not None:
                     result[package] = XcdChkUpdatedPackageVersion(
-                        match.group("old_version"), match.group("new_version")
+                        match["old_version"], match["new_version"]
                     )
     for package in package_names.get("added", []):
         for line in updated.split("\n"):
@@ -201,7 +201,7 @@ def xcdchk_updated_pkgs(
                 match = upgrade_regex.match(line)
                 if match is not None:
                     result[package] = XcdChkUpdatedPackageVersion(
-                        match.group("old_version"), match.group("new_version")
+                        match["old_version"], match["new_version"]
                     )
     return result
 
@@ -225,7 +225,7 @@ def xcdchk_added_pkgs(changelog: str, added: str) -> Dict[str, str]:
             if line.startswith(package):
                 match = package_version_regex.match(line)
                 if match is not None:
-                    result[package] = match.group("version")
+                    result[package] = match["version"]
     for package in package_names.get("updated", []):
         for line in added.split("\n"):
             if line.startswith(package):
@@ -271,11 +271,12 @@ def xcdchk_downgraded_pkgs(
     downgrade_regex = re.compile(
         r"(?P<name>.*)\.(?P<arch>.*):\s(?P<old_version>.*)\s=>\s(?P<new_version>.*)"
     )
-    result: Dict[str, XcdChkUpdatedPackageVersion] = {}
-    for match in downgrade_regex.finditer(downgraded_rpms):
-        result[match.group("name")] = XcdChkUpdatedPackageVersion(
+    result: Dict[str, XcdChkUpdatedPackageVersion] = {
+        match.group("name"): XcdChkUpdatedPackageVersion(
             match.group("old_version"), match.group("new_version")
         )
+        for match in downgrade_regex.finditer(downgraded_rpms)
+    }
     return result
 
 
@@ -287,10 +288,9 @@ def xcdchk_mentioned_bugs(changelog: str) -> List[str]:
     :returns: The sorted list with the Bugzilla bug numbers.
     """
     regex_bugzilla = re.compile(r"(bsc#|bnc#|boo#)(\d{7})", flags=re.M)
-    bugs_set: Set[str] = set()
-    for match in regex_bugzilla.finditer(changelog):
-        bugs_set.add(match.group(2))
-
+    bugs_set: Set[str] = {
+        match.group(2) for match in regex_bugzilla.finditer(changelog)
+    }
     return sorted(bugs_set)
 
 
@@ -338,9 +338,9 @@ def mentioned_jira_references(changelog: str) -> List[str]:
     :returns: The list of SLE and PED issues that can be found.
     """
     jira_ped_regex = re.compile(r"jsc#SLE-[0-9]{5}|jsc#PED-[0-9]{1,5}")
-    result: Set[str] = set()
-    for match in jira_ped_regex.finditer(changelog):
-        result.add(match.group())
+    result: Set[str] = {
+        match.group() for match in jira_ped_regex.finditer(changelog)
+    }
     return sorted(result)
 
 
@@ -351,10 +351,8 @@ def build_ped_list(changelog: str) -> List[str]:
     :param changelog: The str with the full changelog between two images.
     :returns: The list of PED issues that can be found.
     """
-    result = set()
     ped_regex = re.compile(r"PED-[0-9]{1,5}")
-    for match in ped_regex.finditer(changelog):
-        result.add(match.group())
+    result = {match.group() for match in ped_regex.finditer(changelog)}
     return sorted(result)
 
 

@@ -69,10 +69,7 @@ def convert_yml_to_dict(file_content: str, unsorted=False) -> Dict[str, List[str
         parsed_yaml = yaml.safe_load(file_content)
         for module, packages in parsed_yaml.items():
             for package in packages:
-                if unsorted:
-                    ret[package] = ["unsorted"]
-                else:
-                    ret[package] = [module]
+                ret[package] = ["unsorted"] if unsorted else [module]
     except yaml.YAMLError as yaml_error:
         logger.error(yaml_error, exc_info=True)
     return ret
@@ -105,7 +102,7 @@ def get_yml_files(command: str, revision) -> Optional[Dict[str, List[str]]]:
     ret: Dict[str, List[str]] = {}
     yaml_files = ["reference-summary.yml", "reference-unsorted.yml", "unneeded.yml"]
     for file in yaml_files:
-        cmd = command + f" {file}"
+        cmd = f"{command} {file}"
         if revision:
             cmd += f" -r {revision}"
         output = download_file(cmd)
@@ -130,9 +127,7 @@ def get_txt_file(cmd: str, revision) -> Optional[Dict[str, List[str]]]:
     if revision:
         cmd += f" -r {revision}"
     output = download_file(cmd)
-    if output.returncode != 0:
-        return None
-    return convert_txt_to_dict(output.stdout)
+    return None if output.returncode != 0 else convert_txt_to_dict(output.stdout)
 
 
 def get_file_content(project: str, revision: str):
@@ -149,8 +144,8 @@ def get_file_content(project: str, revision: str):
     ret = get_txt_file(cmd, revision)
     if not ret:
         ret = get_yml_files(cmd, revision)
-        if not ret:
-            sys.exit(1)
+    if not ret:
+        sys.exit(1)
     write_summary_dict(project, ret)
     return ret
 
@@ -169,10 +164,7 @@ def read_yaml_file(file, unsorted=False):
             parsed_yaml = yaml.safe_load(stream)
             for module, packages in parsed_yaml.items():
                 for package in packages:
-                    if unsorted:
-                        ret[package] = ["unsorted"]
-                    else:
-                        ret[package] = [module]
+                    ret[package] = ["unsorted"] if unsorted else [module]
         except yaml.YAMLError as yaml_error:
             logger.error(yaml_error, exc_info=True)
     return ret
@@ -216,9 +208,7 @@ def write_summary_dict(file: str, content: Dict[str, List[str]]) -> None:
     logger.info("List of %s packages saved in %s", file, file)
     output = []
     for pkg in sorted(content):
-        for group in sorted(content[pkg]):
-            output.append(f"{pkg}:{group}")
-
+        output.extend(f"{pkg}:{group}" for group in sorted(content[pkg]))
     with open(file, "w", encoding="UTF-8") as fp_summary_file:
         for line in sorted(output):
             fp_summary_file.write(line + "\n")
@@ -294,8 +284,7 @@ def calculcate_package_diff(old_file: dict, new_file: dict) -> Optional[str]:
         added[addkey].append(pkg)
 
     removed: Dict[str, List[str]] = {}
-    for pkg in old_file:
-        old_groups = old_file[pkg]
+    for pkg, old_groups in old_file.items():
         if new_file.get(pkg):
             continue
         removekey = ",".join(old_groups)

@@ -45,11 +45,9 @@ class JiraUtils:
         :param ssl_options: The NamedTuple that contains the options to configure the SSL setup.
         :return: The dictionary that will be passed to the JIRA library and in the end to requests.
         """
-        result: Dict[str, Union[str, bool]] = {}
-        if ssl_options.check_cert:
-            result["verify"] = ssl_options.truststore
-        else:
-            result["verify"] = False
+        result: Dict[str, Union[str, bool]] = {
+            "verify": ssl_options.truststore if ssl_options.check_cert else False
+        }
         return result
 
     def jira_get_field_values(self, field_id: str, issue: str) -> Dict[str, str]:
@@ -60,12 +58,12 @@ class JiraUtils:
         :param issue: The issue that decides the field values that are available to search for.
         :return: The dict of possible field values or an empty dict. Keys represent the names and values are the IDs.
         """
-        result = {}
         issue_obj = self.jira_obj.issue(issue)
         meta = self.jira_obj.editmeta(issue_obj.key)
-        for option in meta["fields"][field_id]["allowedValues"]:
-            result[option.get("value")] = option.get("id")
-        return result
+        return {
+            option.get("value"): option.get("id")
+            for option in meta["fields"][field_id]["allowedValues"]
+        }
 
     def jira_get_field_name(self, name: str) -> str:
         """
@@ -97,10 +95,14 @@ class JiraUtils:
         """
         issue_obj = self.jira_obj.issue(issue)
         project = issue_obj.get_field("project")
-        for version in self.jira_obj.project_versions(project):
-            if version.name == name:
-                return version
-        return None
+        return next(
+            (
+                version
+                for version in self.jira_obj.project_versions(project)
+                if version.name == name
+            ),
+            None,
+        )
 
     def jira_get_transition_id(self, jsc: str, transition_name: str) -> str:
         """
@@ -143,8 +145,9 @@ class JiraUtils:
         :param max_results: The number of results that should be
         :return: The list of issue keys that match the filter. The number of results is limited by ``max_results``.
         """
-        result: List[str] = []
-        for issue in self.jira_obj.search_issues(jql, maxResults=max_results):
-            if isinstance(jira.Issue, str):
-                result.append(issue.key)
+        result: List[str] = [
+            issue.key
+            for issue in self.jira_obj.search_issues(jql, maxResults=max_results)
+            if isinstance(jira.Issue, str)
+        ]
         return result

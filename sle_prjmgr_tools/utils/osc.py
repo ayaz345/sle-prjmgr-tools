@@ -57,8 +57,7 @@ class OscUtils:
         """
         project_parts = project.split(":")
         product_version = project_parts[-2].split("-")
-        result = f"SLES{product_version[1]}-{product_version[2]}"
-        return result
+        return f"SLES{product_version[1]}-{product_version[2]}"
 
     def get_file_from_package(
         self,
@@ -125,19 +124,15 @@ class OscUtils:
             if not result:
                 continue
 
-            name = result.group("name")
+            name = result["name"]
             if name.endswith("-debuginfo") or name.endswith("-debuginfo-32bit"):
                 continue
             if name.endswith("-debugsource"):
                 continue
-            if result.group("arch") == "src":
+            if result["arch"] == "src":
                 continue
 
-            parsed.append(
-                BinaryParsed(
-                    package, result.group("filename"), name, result.group("arch")
-                )
-            )
+            parsed.append(BinaryParsed(package, result["filename"], name, result["arch"]))
 
         return parsed
 
@@ -232,10 +227,11 @@ class OscUtils:
         """
         package_list = core.meta_get_packagelist(self.osc_server, project)
         container_regex = re.compile(r"^(cdi|virt)-.*-container")
-        result: List[str] = []
-        for package_name in package_list:
-            if container_regex.match(package_name):
-                result.append(package_name)
+        result: List[str] = [
+            package_name
+            for package_name in package_list
+            if container_regex.match(package_name)
+        ]
         return result
 
     def osc_get_products(self, project: str) -> List[str]:
@@ -247,10 +243,11 @@ class OscUtils:
         """
         package_list = core.meta_get_packagelist(self.osc_server, project)
         products_regex = re.compile(rf"^{self.convert_project_to_product(project)}")
-        result: List[str] = []
-        for package_name in package_list:
-            if products_regex.match(package_name) and "release" not in package_name:
-                result.append(package_name)
+        result: List[str] = [
+            package_name
+            for package_name in package_list
+            if products_regex.match(package_name) and "release" not in package_name
+        ]
         return result
 
     def osc_get_jsc_from_sr(self, sr_number: int) -> List[str]:
@@ -261,11 +258,7 @@ class OscUtils:
         :return: The list of jsc's that were mentioned.
         """
         issues = core.get_request_issues(self.osc_server, str(sr_number))
-        result = []
-        for issue in issues:
-            if issue.get("tracker") == "jsc":
-                result.append(issue.get("name"))
-        return result
+        return [issue.get("name") for issue in issues if issue.get("tracker") == "jsc"]
 
     def osc_do_release(
         self,
@@ -302,10 +295,10 @@ class OscUtils:
         url = core.makeurl(self.osc_server, baseurl, query=query)
         fp_post_result = core.http_POST(url)
         while True:
-            buf = fp_post_result.read(16384)
-            if not buf:
+            if buf := fp_post_result.read(16384):
+                sys.stdout.write(core.decode_it(buf))
+            else:
                 break
-            sys.stdout.write(core.decode_it(buf))
 
 
 class OscReleaseHelper(OscUtils):
